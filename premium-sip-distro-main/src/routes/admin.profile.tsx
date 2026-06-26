@@ -4,14 +4,14 @@ import { toast } from "sonner";
 import { SiteLayout } from "@/components/site/Layout";
 import { useAuth } from "@/lib/auth";
 import { fetchApi } from "@/lib/api";
-import { User, Building2, Lock } from "lucide-react";
+import { User, Building2, Lock, User as UserIcon, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/profile")({
   component: AdminProfile,
 });
 
 function AdminProfile() {
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [profileData, setProfileData] = useState<any>(null);
@@ -92,8 +92,9 @@ function AdminProfile() {
           {activeTab === "profile" && (
             <ProfileForm
               data={profileData}
-              onSuccess={() => {
+              onSuccess={(updatedUser) => {
                 toast.success("Profile updated successfully!");
+                updateUser(updatedUser);
                 loadData();
               }}
             />
@@ -123,8 +124,60 @@ function AdminProfile() {
   );
 }
 
-function ProfileForm({ data, onSuccess }: { data: any; onSuccess: () => void }) {
+function ProfileForm({ data, onSuccess }: { data: any; onSuccess: (user: any) => void }) {
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File size must be less than 5MB");
+        return;
+      }
+      if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+        toast.error("Only JPEG, JPG, PNG, and WEBP files are allowed");
+        return;
+      }
+      setPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!preview) return;
+    try {
+      setUploading(true);
+      const input = document.getElementById('profile-image') as HTMLInputElement;
+      if (input.files && input.files[0]) {
+        const formData = new FormData();
+        formData.append('image', input.files[0]);
+        const updatedUser = await fetchApi('/auth/profile/image', {
+          method: 'POST',
+          body: formData,
+        });
+        onSuccess(updatedUser);
+        toast.success("Profile image updated successfully!");
+        setPreview(null);
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeleteImage = async () => {
+    try {
+      const updatedUser = await fetchApi('/auth/profile/image', {
+        method: 'DELETE',
+      });
+      onSuccess(updatedUser);
+      toast.success("Profile image deleted successfully!");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -134,12 +187,13 @@ function ProfileForm({ data, onSuccess }: { data: any; onSuccess: () => void }) 
       const payload = {
         name: formData.get("name"),
         email: formData.get("email"),
+        phoneNumber: formData.get("phoneNumber"),
       };
-      await fetchApi("/auth/profile", {
+      const updatedUser = await fetchApi("/auth/profile", {
         method: "PUT",
         body: JSON.stringify(payload),
       });
-      onSuccess();
+      onSuccess(updatedUser);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -148,24 +202,85 @@ function ProfileForm({ data, onSuccess }: { data: any; onSuccess: () => void }) 
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="flex flex-col items-center">
+        <div className="relative">
+          <div className="h-32 w-32 rounded-full overflow-hidden bg-secondary flex items-center justify-center mb-4">
+            {preview ? (
+              <img src={preview} alt="Preview" className="h-full w-full object-cover" />
+            ) : data.profileImage ? (
+              <img src={data.profileImage} alt={data.name} className="h-full w-full object-cover" />
+            ) : (
+              <UserIcon className="h-12 w-12 text-navy-deep" />
+            )}
+          </div>
+          {preview && (
+            <button
+              type="button"
+              onClick={() => setPreview(null)}
+              className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <label className="cursor-pointer px-4 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700 transition">
+            Choose Image
+            <input
+              id="profile-image"
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+          </label>
+          {preview && (
+            <button
+              type="button"
+              onClick={handleUpload}
+              disabled={uploading}
+              className="px-4 py-2 bg-navy-deep text-white rounded-lg font-semibold hover:bg-navy transition disabled:opacity-50"
+            >
+              {uploading ? "Uploading..." : "Upload"}
+            </button>
+          )}
+          {data.profileImage && !preview && (
+            <button
+              type="button"
+              onClick={handleDeleteImage}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg font-semibold hover:bg-red-600 transition"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
       <div>
-        <label className="block font-semibold mb-1">Name</label>
+        <label className="block font-semibold mb-2">Name</label>
         <input
           required
           name="name"
           defaultValue={data.name}
-          className="w-full border rounded-lg px-3 py-2"
+          className="w-full border rounded-lg px-4 py-2"
         />
       </div>
       <div>
-        <label className="block font-semibold mb-1">Email</label>
+        <label className="block font-semibold mb-2">Email</label>
         <input
           required
           type="email"
           name="email"
           defaultValue={data.email}
-          className="w-full border rounded-lg px-3 py-2"
+          className="w-full border rounded-lg px-4 py-2"
+        />
+      </div>
+      <div>
+        <label className="block font-semibold mb-2">Phone Number</label>
+        <input
+          name="phoneNumber"
+          defaultValue={data.phoneNumber || ""}
+          className="w-full border rounded-lg px-4 py-2"
         />
       </div>
       <div className="pt-4">
@@ -209,28 +324,28 @@ function BusinessForm({ data, onSuccess }: { data: any; onSuccess: () => void })
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block font-semibold mb-1">Business Name</label>
+        <label className="block font-semibold mb-2">Business Name</label>
         <input
           name="name"
           defaultValue={data.name}
-          className="w-full border rounded-lg px-3 py-2"
+          className="w-full border rounded-lg px-4 py-2"
         />
       </div>
       <div>
-        <label className="block font-semibold mb-1">Business Phone</label>
+        <label className="block font-semibold mb-2">Business Phone</label>
         <input
           name="phone"
           defaultValue={data.phone}
-          className="w-full border rounded-lg px-3 py-2"
+          className="w-full border rounded-lg px-4 py-2"
         />
       </div>
       <div>
-        <label className="block font-semibold mb-1">Business Address</label>
+        <label className="block font-semibold mb-2">Business Address</label>
         <textarea
           name="address"
           rows={3}
           defaultValue={data.address}
-          className="w-full border rounded-lg px-3 py-2"
+          className="w-full border rounded-lg px-4 py-2"
         />
       </div>
       <div className="pt-4">
@@ -278,30 +393,30 @@ function PasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block font-semibold mb-1">Current Password</label>
+        <label className="block font-semibold mb-2">Current Password</label>
         <input
           required
           type="password"
           name="currentPassword"
-          className="w-full border rounded-lg px-3 py-2"
+          className="w-full border rounded-lg px-4 py-2"
         />
       </div>
       <div>
-        <label className="block font-semibold mb-1">New Password</label>
+        <label className="block font-semibold mb-2">New Password</label>
         <input
           required
           type="password"
           name="newPassword"
-          className="w-full border rounded-lg px-3 py-2"
+          className="w-full border rounded-lg px-4 py-2"
         />
       </div>
       <div>
-        <label className="block font-semibold mb-1">Confirm New Password</label>
+        <label className="block font-semibold mb-2">Confirm New Password</label>
         <input
           required
           type="password"
           name="confirmPassword"
-          className="w-full border rounded-lg px-3 py-2"
+          className="w-full border rounded-lg px-4 py-2"
         />
       </div>
       <div className="pt-4">

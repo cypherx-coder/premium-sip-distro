@@ -1,10 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { fetchApi } from './api';
 
 type User = {
   id: string;
   name: string;
   email: string;
   role: 'Customer' | 'Admin';
+  phoneNumber?: string | null;
+  deliveryAddress?: string | null;
+  profileImage?: string | null;
 };
 
 type AuthContextType = {
@@ -12,6 +16,7 @@ type AuthContextType = {
   token: string | null;
   login: (token: string, user: User) => void;
   logout: () => void;
+  updateUser: (user: Partial<User>) => void;
   loading: boolean;
 };
 
@@ -39,6 +44,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('user', JSON.stringify(user));
   };
 
+  const updateUser = (updatedUser: Partial<User>) => {
+    if (!user) return;
+    const newUser = { ...user, ...updatedUser };
+    setUser(newUser);
+    localStorage.setItem('user', JSON.stringify(newUser));
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -47,7 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

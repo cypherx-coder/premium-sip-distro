@@ -73,6 +73,24 @@ export function Nav() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {user && (
+            <Link
+              to={user.role === 'Admin' ? '/admin/profile' : '/dashboard'}
+              className="flex items-center gap-2"
+            >
+              <div className="h-10 w-10 rounded-full overflow-hidden bg-secondary flex items-center justify-center">
+                {user.profileImage ? (
+                  <img src={user.profileImage} alt={user.name} className="h-full w-full object-cover" />
+                ) : (
+                  <UserIcon className="h-5 w-5 text-navy-deep" />
+                )}
+              </div>
+              <div className="hidden md:block">
+                <div className={`text-sm font-semibold ${scrolled ? "text-navy-deep" : "text-white"}`}>{user.name}</div>
+                <div className={`text-xs ${scrolled ? "text-muted-foreground" : "text-white/70"}`}>{user.role}</div>
+              </div>
+            </Link>
+          )}
           {!user ? (
             <Link
               to="/login"
@@ -123,7 +141,7 @@ export function Nav() {
       </div>
 
       {open && (
-        <div className="lg:hidden mx-4 mt-3 rounded-2xl glass-light shadow-premium p-3 animate-fade-up">
+        <div className="lg:hidden mx-4 mt-3 rounded-2xl glass-light shadow-card p-3 animate-fade-up">
           {links.map((l) => (
             <Link
               key={l.to}
