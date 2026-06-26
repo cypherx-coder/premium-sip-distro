@@ -82,11 +82,11 @@ router.get("/performance", authenticate, async (req: AuthRequest, res) => {
     const bestSellers = Object.values(productSales)
       .sort((a: any, b: any) => b.revenue - a.revenue)
       .slice(0, 10);
-      
+    
     const mostProfitable = Object.values(productSales)
       .sort((a: any, b: any) => b.profit - a.profit)
       .slice(0, 10);
-      
+    
     // Slow moving: products with no sales or very low units sold
     const slowMoving = products.map(p => {
       const saleData = productSales[p._id.toString()] || { product: p, unitsSold: 0, revenue: 0 };
