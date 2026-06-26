@@ -1,68 +1,149 @@
-import express from 'express';
-import type { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
-import { User } from '../models/User.ts';
-import { authenticate, AuthRequest } from '../middleware/auth.ts';
+
+import express from "express";
+import jwt from "jsonwebtoken";
+import User from "../models/User";
+import CustomerProfile from "../models/CustomerProfile";
+import { authenticate, AuthRequest } from "../middleware/auth";
 
 const router = express.Router();
 
-// Login
-router.post('/login', async (req, res) => {
+// Register
+router.post("/register", async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user || !(await (user as any).comparePassword(password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    const { name, email, password } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already in use" });
     }
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'secret');
-    res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
+    // Create new user
+    const user = new User({ name, email, password });
+    await user.save();
+
+    // Generate JWT
+    const secret = process.env.JWT_SECRET || "your_super_secret_jwt_key";
+    const token = jwt.sign({ id: user._id, role: user.role }, secret);
+
+    // Return user data
+    res.status(201).json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error: any) {
+    console.error("Register error:", error);
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "Email already in use" });
+    }
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-// Profile
-router.get('/profile', authenticate, async (req: AuthRequest, res) => {
+// Login
+router.post("/login", async (req, res) => {
   try {
-    const user = await User.findById(req.user?.id).select('-password');
-    res.json(user);
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
+    const { email, password } = req.body;
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Compare password
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Generate JWT
+    const secret = process.env.JWT_SECRET || "your_super_secret_jwt_key";
+    const token = jwt.sign({ id: user._id, role: user.role }, secret);
+
+    // Return user data
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error: any) {
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get Profile
+router.get("/profile", authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    res.json(req.user);
+  } catch (error: any) {
+    console.error("Get profile error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // Update Profile
-router.put('/profile', authenticate, async (req: AuthRequest, res) => {
+router.put("/profile", authenticate, async (req: AuthRequest, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
     const { name, email } = req.body;
     const user = await User.findByIdAndUpdate(
-      req.user?.id,
+      req.user._id,
       { name, email },
       { new: true }
-    ).select('-password');
+    ).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
     res.json(user);
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
+  } catch (error: any) {
+    console.error("Update profile error:", error);
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "Email already in use" });
+    }
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // Change Password
-router.put('/profile/password', authenticate, async (req: AuthRequest, res) => {
+router.put("/profile/password", authenticate, async (req: AuthRequest, res) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
     const { currentPassword, newPassword } = req.body;
-    const user = await User.findById(req.user?.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    const isValid = await (user as any).comparePassword(currentPassword);
-    if (!isValid) return res.status(401).json({ message: 'Invalid current password' });
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(401).json({ message: "Invalid current password" });
+    }
 
     user.password = newPassword;
     await user.save();
-    res.json({ message: 'Password updated successfully' });
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error: any) {
+    console.error("Change password error:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
