@@ -4,6 +4,10 @@ import cors from "cors";
 import dotenv from "dotenv";
 import connectDB from "./config/database";
 import authRoutes from "./routes/auth";
+import productRoutes from "./routes/products";
+import orderRoutes from "./routes/orders";
+import inventoryRoutes from "./routes/inventory";
+import reportRoutes from "./routes/reports";
 
 dotenv.config();
 
@@ -15,6 +19,10 @@ app.use(express.json());
 
 // Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/orders", orderRoutes);
+app.use("/api/inventory", inventoryRoutes);
+app.use("/api/reports", reportRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {

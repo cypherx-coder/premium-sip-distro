@@ -21,6 +21,19 @@ function AdminProducts() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [stockFilter, setStockFilter] = useState("All");
+  const [formData, setFormData] = useState<any>({
+    name: "",
+    brand: "",
+    category: "",
+    description: "",
+    image: "",
+    packageType: "",
+    quantity: 0,
+    sku: "",
+    costPrice: 0,
+    lowStockThreshold: 10,
+    purchaseTypes: [{ type: "Single", units: 1, sellingPrice: 0 }],
+  });
 
   useEffect(() => {
     if (!authLoading && (!user || user.role !== "Admin")) {
@@ -80,12 +93,69 @@ function AdminProducts() {
     }
   };
 
+  const handleOpenModal = (product?: any) => {
+    if (product) {
+      setEditingProduct(product);
+      setFormData({ ...product });
+    } else {
+      setEditingProduct(null);
+      setFormData({
+        name: "",
+        brand: "",
+        category: "",
+        description: "",
+        image: "",
+        packageType: "",
+        quantity: 0,
+        sku: "",
+        costPrice: 0,
+        lowStockThreshold: 10,
+        purchaseTypes: [{ type: "Single", units: 1, sellingPrice: 0 }],
+      });
+    }
+    setShowModal(true);
+  };
+
+  // Sync price with first purchase type
+  useEffect(() => {
+    if (formData.purchaseTypes && formData.purchaseTypes.length > 0) {
+      setFormData({ ...formData, price: formData.purchaseTypes[0].sellingPrice });
+    }
+  }, [formData.purchaseTypes]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingProduct) {
+        await fetchApi(`/products/${editingProduct._id}`, {
+          method: "PUT",
+          body: JSON.stringify(formData),
+        });
+        toast.success("Product updated");
+      } else {
+        await fetchApi("/products", {
+          method: "POST",
+          body: JSON.stringify(formData),
+        });
+        toast.success("Product created");
+      }
+      setShowModal(false);
+      loadProducts();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   return (
     <SiteLayout>
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h1 className="text-3xl font-bold text-navy-deep">Product Management</h1>
           <div className="flex gap-3">
+            <button onClick={() => handleOpenModal()} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700">
+              <Plus className="h-4 w-4" />
+              Add Product
+            </button>
             <button onClick={loadProducts} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200">
               <RefreshCw className="h-5 w-5" />
             </button>
@@ -165,6 +235,9 @@ function AdminProducts() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2">
+                        <button onClick={() => handleOpenModal(p)} className="p-2 hover:bg-gray-100 rounded" title="Edit">
+                          <Edit className="h-4 w-4 text-blue-600" />
+                        </button>
                         <button onClick={() => handleToggleActive(p._id)} className="p-2 hover:bg-gray-100 rounded" title={p.isActive ? "Deactivate" : "Activate"}>
                           {p.isActive ? <EyeOff className="h-4 w-4 text-gray-600" /> : <Eye className="h-4 w-4 text-emerald-600" />}
                         </button>
@@ -184,6 +257,198 @@ function AdminProducts() {
           </div>
         )}
       </div>
+      {/* Product Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white z-10">
+              <h3 className="text-xl font-bold">{editingProduct ? "Edit Product" : "Add New Product"}</h3>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-500 hover:text-gray-800 p-1"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Product Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Brand</label>
+                  <input
+                    type="text"
+                    value={formData.brand}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Category</label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="">Select Category</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c.name} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Package Type</label>
+                  <input
+                    type="text"
+                    value={formData.packageType}
+                    onChange={(e) => setFormData({ ...formData, packageType: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Quantity (Stock)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.quantity}
+                    onChange={(e) => setFormData({ ...formData, quantity: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Low Stock Threshold</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.lowStockThreshold}
+                    onChange={(e) => setFormData({ ...formData, lowStockThreshold: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Cost Price (₦)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.costPrice}
+                    onChange={(e) => setFormData({ ...formData, costPrice: Number(e.target.value) })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">SKU</label>
+                  <input
+                    type="text"
+                    value={formData.sku}
+                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Description</label>
+                <textarea
+                  rows={3}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-1">Image URL</label>
+                <input
+                  type="text"
+                  value={formData.image}
+                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-2">Purchase Types</h4>
+                {formData.purchaseTypes.map((pt: any, index: number) => (
+                  <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Type</label>
+                      <select
+                        value={pt.type}
+                        onChange={(e) => {
+                          const newTypes = [...formData.purchaseTypes];
+                          newTypes[index].type = e.target.value;
+                          setFormData({ ...formData, purchaseTypes: newTypes });
+                        }}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                      >
+                        <option value="Single">Single</option>
+                        <option value="Pack">Pack</option>
+                        <option value="Crate">Crate</option>
+                        <option value="Carton">Carton</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Units</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={pt.units}
+                        onChange={(e) => {
+                          const newTypes = [...formData.purchaseTypes];
+                          newTypes[index].units = Number(e.target.value);
+                          setFormData({ ...formData, purchaseTypes: newTypes });
+                        }}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Selling Price (₦)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={pt.sellingPrice}
+                        onChange={(e) => {
+                          const newTypes = [...formData.purchaseTypes];
+                          newTypes[index].sellingPrice = Number(e.target.value);
+                          setFormData({ ...formData, purchaseTypes: newTypes });
+                        }}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, purchaseTypes: [...formData.purchaseTypes, { type: "Single", units: 1, sellingPrice: 0 }] })}
+                  className="mt-2 text-sm text-emerald-600 font-semibold hover:text-emerald-700"
+                >
+                  + Add Purchase Type
+                </button>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-semibold hover:bg-emerald-700"
+                >
+                  {editingProduct ? "Update Product" : "Create Product"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </SiteLayout>
   );
 }
