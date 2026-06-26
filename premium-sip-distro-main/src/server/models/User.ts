@@ -8,6 +8,9 @@ export interface IUser extends Document {
   password: string;
   role: "Customer" | "Admin";
   isActive: boolean;
+  profileImage?: string;
+  phoneNumber?: string;
+  deliveryAddress?: string;
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -40,6 +43,18 @@ const UserSchema: Schema = new Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    profileImage: {
+      type: String,
+      default: null,
+    },
+    phoneNumber: {
+      type: String,
+      default: null,
+    },
+    deliveryAddress: {
+      type: String,
+      default: null,
     },
   },
   {

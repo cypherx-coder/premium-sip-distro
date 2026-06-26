@@ -2,6 +2,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
 import connectDB from "./config/database";
 import authRoutes from "./routes/auth";
 import productRoutes from "./routes/products";
@@ -16,6 +17,10 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files (uploads)
+const uploadsDir = path.resolve(process.cwd(), "uploads");
+app.use("/uploads", express.static(uploadsDir));
 
 // Routes
 app.use("/api/auth", authRoutes);

@@ -5,8 +5,47 @@ import User from "../models/User";
 import CustomerProfile from "../models/CustomerProfile";
 import { BusinessInfo } from "../models/BusinessInfo";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = express.Router();
+
+// Ensure uploads directory exists
+const uploadsDir = path.resolve(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, "profile-" + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+// File filter for allowed types
+const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const allowedTypes = /jpeg|jpg|png|webp/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error("Unsupported file type! Allowed: jpg, jpeg, png, webp"));
+  }
+};
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter,
+});
 
 // Register
 router.post("/register", async (req, res) => {
@@ -28,13 +67,13 @@ router.post("/register", async (req, res) => {
     const token = jwt.sign({ id: user._id, role: user.role }, secret);
 
     // Return user data
+    const userObj = user.toObject();
+    const { _id, password: _, ...rest } = userObj;
     res.status(201).json({
       token,
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
+        id: _id,
+        ...rest,
       },
     });
   } catch (error: any) {
@@ -68,13 +107,13 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign({ id: user._id, role: user.role }, secret);
 
     // Return user data
+    const userObj = user.toObject();
+    const { _id, password: _, ...rest } = userObj;
     res.json({
       token,
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
+        id: _id,
+        ...rest,
       },
     });
   } catch (error: any) {
@@ -91,7 +130,7 @@ router.get("/profile", authenticate, async (req: AuthRequest, res) => {
     }
     // Convert _id to id for frontend
     const userObj = req.user.toObject();
-    const { _id, ...rest } = userObj;
+    const { _id, password: _, ...rest } = userObj;
     res.json({ id: _id, ...rest });
   } catch (error: any) {
     console.error("Get profile error:", error);
@@ -105,11 +144,11 @@ router.put("/profile", authenticate, async (req: AuthRequest, res) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    const { name, email } = req.body;
+    const { name, email, phoneNumber, deliveryAddress } = req.body;
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      { name, email },
-      { new: true }
+      { name, email, phoneNumber, deliveryAddress },
+      { new: true, runValidators: true }
     ).select("-password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -150,6 +189,83 @@ router.put("/profile/password", authenticate, async (req: AuthRequest, res) => {
     res.json({ message: "Password updated successfully" });
   } catch (error: any) {
     console.error("Change password error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Upload Profile Image
+router.post("/profile/image", authenticate, upload.single("image"), async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No image uploaded" });
+    }
+
+    // If user already has an image, delete the old one
+    if (req.user.profileImage) {
+      const oldImagePath = path.resolve(process.cwd(), req.user.profileImage);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Update user with new image path
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { profileImage: `/uploads/${req.file.filename}` },
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const userObj = user.toObject();
+    const { _id, ...rest } = userObj;
+    res.json({ id: _id, ...rest });
+  } catch (error: any) {
+    console.error("Upload image error:", error);
+    if (error.message) {
+      return res.status(400).json({ message: error.message });
+    }
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Delete Profile Image
+router.delete("/profile/image", authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Delete the image file if it exists
+    if (req.user.profileImage) {
+      const imagePath = path.resolve(process.cwd(), req.user.profileImage);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+
+    // Update user to remove image
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { profileImage: null },
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const userObj = user.toObject();
+    const { _id, ...rest } = userObj;
+    res.json({ id: _id, ...rest });
+  } catch (error: any) {
+    console.error("Delete image error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
