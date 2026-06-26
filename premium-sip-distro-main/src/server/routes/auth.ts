@@ -3,6 +3,7 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
 import CustomerProfile from "../models/CustomerProfile";
+import { BusinessInfo } from "../models/BusinessInfo";
 import { authenticate, AuthRequest } from "../middleware/auth";
 
 const router = express.Router();
@@ -88,7 +89,10 @@ router.get("/profile", authenticate, async (req: AuthRequest, res) => {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    res.json(req.user);
+    // Convert _id to id for frontend
+    const userObj = req.user.toObject();
+    const { _id, ...rest } = userObj;
+    res.json({ id: _id, ...rest });
   } catch (error: any) {
     console.error("Get profile error:", error);
     res.status(500).json({ message: "Server error" });
@@ -110,7 +114,10 @@ router.put("/profile", authenticate, async (req: AuthRequest, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    res.json(user);
+    // Convert _id to id for frontend
+    const userObj = user.toObject();
+    const { _id, ...rest } = userObj;
+    res.json({ id: _id, ...rest });
   } catch (error: any) {
     console.error("Update profile error:", error);
     if (error.code === 11000) {
@@ -143,6 +150,41 @@ router.put("/profile/password", authenticate, async (req: AuthRequest, res) => {
     res.json({ message: "Password updated successfully" });
   } catch (error: any) {
     console.error("Change password error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Get Business Info
+router.get("/business", authenticate, async (req: AuthRequest, res) => {
+  try {
+    let businessInfo = await BusinessInfo.findOne();
+    if (!businessInfo) {
+      businessInfo = new BusinessInfo();
+      await businessInfo.save();
+    }
+    res.json(businessInfo);
+  } catch (error: any) {
+    console.error("Get business info error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Update Business Info
+router.put("/business", authenticate, async (req: AuthRequest, res) => {
+  try {
+    const { name, phone, address } = req.body;
+    let businessInfo = await BusinessInfo.findOne();
+    if (!businessInfo) {
+      businessInfo = new BusinessInfo();
+    }
+    businessInfo.name = name || businessInfo.name;
+    businessInfo.phone = phone || businessInfo.phone;
+    businessInfo.address = address || businessInfo.address;
+    businessInfo.updatedAt = new Date();
+    await businessInfo.save();
+    res.json(businessInfo);
+  } catch (error: any) {
+    console.error("Update business info error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
