@@ -1,0 +1,52 @@
+----------------------------------------------------
+Database Name: admin
+  Size on Disk: 40960 bytes
+  Empty: false
+
+  Collection: system.version (1 documents)
+
+----------------------------------------------------
+Database Name: classyrestaurant
+  Size on Disk: 65536 bytes
+  Empty: false
+
+  Collection: reservations (15 documents)
+
+----------------------------------------------------
+Database Name: config
+  Size on Disk: 73728 bytes
+  Empty: false
+
+  Collection: system.sessions (1 documents)
+
+----------------------------------------------------
+Database Name: ebeems
+  Size on Disk: 380928 bytes
+  Empty: false
+
+  Collection: customerusers (1 documents)
+  Collection: products (3 documents)
+  Collection: drinks (0 documents)
+  Collection: customerorders (1 documents)
+  Collection: customers (1 documents)
+  Collection: users (4 documents)
+  Collection: orders (0 documents)
+
+----------------------------------------------------
+Database Name: local
+  Size on Disk: 77824 bytes
+  Empty: false
+
+  Collection: startup_log (34 documents)
+
+----------------------------------------------------
+Database Name: premium_sip
+  Size on Disk: 8192 bytes
+  Empty: false
+
+  Collection: users (0 documents)
+
+----------------------------------------------------
+
+Step 6: App currently connects to:
+mongodb://localhost:27017/premium_sip
